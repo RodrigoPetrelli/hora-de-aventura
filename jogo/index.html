@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Hora de Aventura — Terra de Ooo</title>
+    <meta property="og:title" content="Hora de Aventura — Terra de Ooo" />
+    <meta property="og:description" content="Explore a Terra de Ooo em 3D como o Finn: reinos, plataformas, gosmas e cristais escondidos." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='36' r='24' fill='white'/%3E%3Ccircle cx='14' cy='14' r='8' fill='white'/%3E%3Ccircle cx='50' cy='14' r='8' fill='white'/%3E%3Cellipse cx='32' cy='40' rx='15' ry='12' fill='%23fddcc0'/%3E%3Ccircle cx='26' cy='38' r='2.5' fill='%23222'/%3E%3Ccircle cx='38' cy='38' r='2.5' fill='%23222'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/addons/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --ink: #1d2340;
+        --paper: #fffdf5;
+        --gold: #ffd23f;
+        --heart: #ff4d6d;
+        --sky: #8fd8ff;
+        --accent: #5ec8f2;
+        --text-scale: 1;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--sky); }
+      body {
+        font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+        color: var(--ink);
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+        font-size: calc(16px * var(--text-scale));
+      }
+      #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      .panel {
+        background: var(--paper);
+        border: 3px solid var(--ink);
+        border-radius: 16px;
+        box-shadow: 0 4px 0 var(--ink);
+      }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #hearts { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 16px; display: flex; gap: 4px; padding: 6px 10px; }
+      .heart { width: 26px; height: 24px; }
+      .heart path { fill: var(--heart); stroke: var(--ink); stroke-width: 2.5; }
+      .heart.empty path { fill: #d9d4c7; }
+      #gems { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 16px; padding: 6px 14px; font-weight: 700; font-size: 1.25em; display: flex; align-items: center; gap: 8px; }
+      /* the boss crystals (grey until won; "got" pops the new one) */
+      #crys { display: flex; gap: 3px; margin-left: 4px; }
+      .cry { width: 13px; height: 21px; }
+      .cry path { fill: #d9d4c7; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+      .cry.ice path { fill: #8fe8ff; }
+      .cry.mint path { fill: #c98cff; }
+      .cry.fire path { fill: #ff8a3a; }
+      .cry.got { animation: cryGot 0.9s ease-out 3; }
+      @keyframes cryGot { 40% { scale: 1.7; filter: brightness(1.4); } }
+      .gem { width: 20px; height: 20px; background: var(--gold); border: 2.5px solid var(--ink); transform: rotate(45deg); border-radius: 3px; }
+      #area {
+        position: absolute; top: 27%; left: 50%; transform: translateX(-50%);
+        font-weight: 700; font-size: 2.6em; color: #fff; text-align: center; white-space: nowrap;
+        -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill;
+        text-shadow: 0 4px 0 var(--ink); opacity: 0; transition: opacity 0.6s;
+      }
+      #area.show { opacity: 1; }
+      #toast {
+        position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 58px); left: 50%; transform: translateX(-50%);
+        padding: 8px 16px; font-weight: 500; max-width: min(90vw, 520px); text-align: center; opacity: 0; transition: opacity 0.3s;
+      }
+      #toast.show { opacity: 1; }
+      #toast b { color: #d6428f; }
+      #prompt {
+        position: absolute; bottom: 26%; left: 50%; transform: translateX(-50%);
+        padding: 6px 14px; font-weight: 700; white-space: nowrap; display: none;
+      }
+      #prompt kbd { background: var(--ink); color: #fff; border-radius: 6px; padding: 0 7px; margin-right: 6px; font-family: inherit; }
+      #dialog {
+        position: absolute; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+        width: min(640px, calc(100vw - 32px)); padding: 14px 18px 12px; pointer-events: auto;
+      }
+      #dlgName { font-weight: 700; color: #d6428f; font-size: 1.1em; }
+      #dlgText { font-size: 1.15em; line-height: 1.4; margin: 4px 0 6px; min-height: 2.8em; }
+      #dlgHint { font-size: 0.85em; opacity: 0.6; text-align: right; }
+      #minimap {
+        position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom));
+        width: 150px; height: 150px; border-radius: 50%; border: 3px solid var(--ink); background: #0003;
+      }
+      #touch { position: absolute; inset: 0; pointer-events: none; }
+      #stick {
+        position: absolute; width: 130px; height: 130px; border-radius: 50%;
+        background: #ffffff40; border: 3px solid #ffffffa0; display: none; pointer-events: none;
+      }
+      #knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: #fffc; border: 3px solid var(--ink); }
+      .tbtn {
+        position: absolute; pointer-events: auto; width: 76px; height: 76px; border-radius: 50%;
+        font: 700 0.95em "Fredoka", sans-serif; color: var(--ink); background: var(--paper);
+        border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); touch-action: none;
+      }
+      .tbtn:active, .tbtn.on { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+      #bJump { right: 24px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 10px); width: 88px; height: 88px; background: #bdf3a0; }
+      #bAtk { right: 124px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 4px); background: #ffd6e8; }
+      #bTalk { right: 44px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 116px); width: 64px; height: 64px; background: #cfeaff; display: none; }
+      #bJake { right: 132px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 100px); width: 64px; height: 64px; background: #ffe7a8; }
+      #bFire { right: 214px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 30px); width: 64px; height: 64px; background: #ffc9a0; }
+      /* Jake's giant fist and Finn's Fire Wave: a clock-hand shade empties as they recharge */
+      #jakePow, #firePow {
+        position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 54px); left: 16px;
+        width: 58px; height: 58px; border-radius: 50%; padding: 0; display: grid; place-items: center; background: #ffe7a8;
+      }
+      #firePow { top: calc(max(12px, env(safe-area-inset-top)) + 124px); background: #ffc9a0; }
+      #jakePow svg, #firePow svg { width: 46px; height: 46px; }
+      #jakePow kbd, #firePow kbd {
+        position: absolute; right: -9px; bottom: -6px; z-index: 1; background: var(--ink); color: #fff;
+        border-radius: 6px; padding: 0 6px; font: 700 0.8em "Fredoka", sans-serif;
+      }
+      #jakePow::after, #bJake::after, #firePow::after, #bFire::after {
+        content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+        background: conic-gradient(#1d2340a8 calc(var(--cd, 0) * 360deg), transparent 0);
+      }
+      #jakePow.ready, #bJake.ready, #firePow.ready, #bFire.ready { animation: pow 1.3s ease-in-out infinite; }
+      @keyframes pow { 0%, 100% { scale: 1; } 50% { scale: 1.08; } }
+      /* pressed while it's still recharging */
+      #firePow.nope, #bFire.nope { animation: nope 0.3s ease-in-out; }
+      @keyframes nope { 25% { translate: -4px 0; } 75% { translate: 4px 0; } }
+      body.touch #jakePow, body.touch #firePow { display: none; }
+      #bPause { position: absolute; pointer-events: auto; top: calc(max(12px, env(safe-area-inset-top)) + 56px); right: 16px; width: 44px; height: 44px; font-size: 1.1em; }
+      body.touch #minimap { width: 104px; height: 104px; top: calc(max(12px, env(safe-area-inset-top)) + 112px); bottom: auto; }
+      /* the quests' objectives (the Ice King's, the Peppermint Butler's) and the boss fights: name,
+         hp bar, cast bar, what he shouts (body.bossMint: the Butler's colours) */
+      #quests { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 54px); right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+      .quest { padding: 4px 12px; font-weight: 700; font-size: 0.9em; display: flex; align-items: center; gap: 8px; background: #eaf7ff; }
+      .quest::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: #8fe3ff; border: 2.5px solid var(--ink); }
+      #quest0 { background: #fff6d6; }
+      #quest0::before { background: #ffd23f; }
+      #quest2 { background: #f3e8ff; }
+      #quest2::before { background: #c07aff; }
+      #quest3 { background: #fff0e0; }
+      #quest3::before { background: #ff8a2a; }
+      #quest3.hurry { background: #ffd2c2; color: #b3200a; animation: pow 0.5s ease-in-out infinite; }
+      body.touch #quests { right: auto; left: 16px; align-items: flex-start; }
+      #boss {
+        position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+        width: min(460px, calc(100vw - 420px)); min-width: 240px; padding: 5px 12px 7px;
+      }
+      #bossTop { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; }
+      #bossName { color: #2b5fd0; font-size: 1.05em; }
+      #bossPhase { color: #d6283a; font-size: 0.85em; }
+      #bossBar { position: relative; height: 16px; margin-top: 3px; border: 2.5px solid var(--ink); border-radius: 999px; background: #d9d4c7; overflow: hidden; }
+      #bossBar i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; }
+      #bossLag { background: #fff; transition: width 0.6s ease-in 0.3s; }
+      #bossHp { background: linear-gradient(#aeeeff, #3f93e8); transition: width 0.08s; }
+      #bossCast { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 0.85em; font-weight: 700; color: #d6283a; }
+      #bossCast i { flex: 1; height: 6px; border-radius: 999px; background: #ffd9cc; overflow: hidden; }
+      #bossCastFill { display: block; height: 100%; width: 0; background: #ff4a1c; }
+      #bossSay {
+        position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 84px); left: 50%; transform: translateX(-50%);
+        padding: 6px 14px; font-weight: 500; font-style: italic; max-width: min(90vw, 480px); text-align: center; opacity: 0; transition: opacity 0.25s;
+        background: #eaf7ff;
+      }
+      #bossSay.show { opacity: 1; }
+      body.bossMint #bossName { color: #7a1fb0; }
+      body.bossMint #bossHp { background: linear-gradient(#e2b8ff, #7a2fd6); }
+      body.bossMint #bossSay { background: #f3e8ff; }
+      body.bossFire #bossName { color: #d23a12; }
+      body.bossFire #bossHp { background: linear-gradient(#ffe08a, #e8401a); }
+      body.bossFire #bossSay { background: #fff0e0; }
+      body:not(.bossOn) #bossSay { top: calc(max(12px, env(safe-area-inset-top)) + 118px); }
+      body.bossOn #toast { top: calc(max(12px, env(safe-area-inset-top)) + 136px); }
+      @media (max-width: 760px) {
+        #boss { top: calc(max(12px, env(safe-area-inset-top)) + 110px); width: calc(100vw - 32px); }
+        #bossSay { top: calc(max(12px, env(safe-area-inset-top)) + 182px); }
+        body.bossOn #toast { top: calc(max(12px, env(safe-area-inset-top)) + 232px); }
+      }
+      body.touch #prompt { bottom: 40%; }
+
+      #menu {
+        position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+        background: radial-gradient(ellipse at 50% 40%, #bfeaff00 0%, #8fd8ff44 55%, #6fc3efaa 100%);
+        overflow-y: auto; z-index: 5;
+      }
+      #menu.overlay { background: #1d234099; backdrop-filter: blur(4px); }
+      #menuCard { width: min(560px, 100%); padding: 22px 22px 18px; text-align: center; }
+      #menu h1 {
+        margin: 0; font-size: clamp(2.1em, 8vw, 3.4em); line-height: 1; color: #fff;
+        -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink);
+      }
+      #menu h2 { margin: 6px 0 14px; font-size: 1.4em; color: #d6428f; }
+      #menuBtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+      .btn {
+        font: 700 1.15em "Fredoka", sans-serif; color: var(--ink); background: var(--gold);
+        border: 3px solid var(--ink); border-radius: 999px; padding: 10px 26px; cursor: pointer;
+        box-shadow: 0 4px 0 var(--ink);
+      }
+      .btn.alt { background: var(--paper); }
+      .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+      .btn:disabled { opacity: 0.5; cursor: wait; }
+      #clues { text-align: left; font-size: 0.95em; line-height: 1.45; background: #fff4d6; border-radius: 12px; padding: 8px 14px; margin-bottom: 12px; max-height: 32vh; overflow-y: auto; }
+      #clues h3 { margin: 0 0 4px; font-size: 1.05em; display: flex; justify-content: space-between; }
+      #clues h3 span { color: #b8860b; }
+      #clues ul { margin: 0; padding-left: 18px; }
+      #clues h3.sep { margin-top: 10px; }
+      #clues p { margin: 4px 0 0; opacity: 0.75; }
+      #clues b { color: #d6428f; }
+      #controls { text-align: left; font-size: 0.95em; line-height: 1.55; background: #eef8ff; border-radius: 12px; padding: 10px 14px; }
+      #controls kbd { background: var(--ink); color: #fff; border-radius: 5px; padding: 0 6px; font-family: inherit; font-size: 0.9em; }
+      #opts { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 12px; font-size: 0.95em; }
+      #opts label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+      #sens { margin-bottom: 12px; font-size: 0.95em; background: #fff4d6; border-radius: 12px; padding: 8px 14px; }
+      #sens h3 { margin: 0 0 4px; font-size: 1.05em; }
+      #sens label { display: grid; grid-template-columns: minmax(0, 11em) 1fr 3.5em; gap: 10px; align-items: center; margin: 4px 0; text-align: left; }
+      #sens input { width: 100%; min-width: 0; accent-color: #d6428f; cursor: pointer; }
+      #sens output { text-align: right; font-variant-numeric: tabular-nums; }
+      #loading { margin: 10px 0 0; font-size: 0.95em; opacity: 0.7; }
+      #debug { position: fixed; left: 8px; bottom: 8px; font: 12px ui-monospace, monospace; color: #fff; background: #000a; padding: 4px 8px; border-radius: 6px; z-index: 9; white-space: pre; }
+      #fade { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.5s; z-index: 4; }
+      #fade.on { opacity: 1; }
+      #fade.dark { background: radial-gradient(circle, #7a2fd6 0%, #1a0628 70%); }
+      #fade.lich { background: radial-gradient(circle, #7dff5a 0%, #1a4a1e 35%, #020604 75%); }
+      #fade.fire { background: radial-gradient(circle, #ffd24a 0%, #ff5a1a 35%, #3a0a04 75%); }
+      #hurt { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 120px #ff2040; opacity: 0; transition: opacity 0.25s; }
+      /* the Dark Lair's vignette (butler.js): darker, then red and pulsing as he gets angrier; a flash when he changes phase */
+      #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.8s; --vig: #1a0430; background: radial-gradient(ellipse at center, transparent 50%, var(--vig) 100%); }
+      #vignette.p1 { --vig: #3a0656; }
+      #vignette.p2 { --vig: #5a0414; animation: vig 1.3s ease-in-out infinite; }
+      @keyframes vig { 50% { filter: brightness(1.5); } }
+      #vignette.flash::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, #ffffffcc, #b070ff88 60%, transparent); animation: vigFlash 0.6s ease-out forwards; }
+      /* the Colosseum of Flames' heat (flameking.js): hotter as the Flame King gets angrier, blue in the blue flame */
+      /* the Lich's cave (lichcave.js): a dark green edge while the camera is in there */
+      #lichvig { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 48%, #021208 100%); }
+      /* the last fight (lichboss.js): "Stop" turns the cave night-still and grey; the words he speaks fill
+         the screen ("PARE.", "CAIA.", his name when he tears Billy's skin off); a green or white flash */
+      body.lichStop #c { filter: grayscale(0.85) brightness(0.72) contrast(1.2); }
+      #lichStop { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s; background: radial-gradient(ellipse at center, transparent 30%, #06121acc 100%); }
+      body.lichStop #lichStop { opacity: 1; }
+      #lichWord { position: fixed; left: 0; right: 0; top: 30%; text-align: center; pointer-events: none; opacity: 0; font: 700 clamp(64px, 14vw, 190px)/1 "Fredoka", system-ui, sans-serif; letter-spacing: 0.08em; color: #d8ffc0; -webkit-text-stroke: 3px #041a06; text-shadow: 0 0 30px #3aff4a, 0 0 80px #3aff4a, 0 8px 0 #041a06; }
+      #lichWord.show { animation: lichWord 1.6s ease-out forwards; }
+      #lichWord.fall { color: #0a120a; -webkit-text-stroke: 3px #9dff5a; text-shadow: 0 0 40px #3aff4a, 0 0 120px #3aff4a, 0 0 4px #ffffff; animation-duration: 2.2s; }
+      #lichWord.stop { color: #e8f4ff; -webkit-text-stroke: 3px #0a1a2a; text-shadow: 0 0 30px #8ac8ff, 0 0 70px #2a6aff; }
+      #lichWord.name { font-size: clamp(48px, 9vw, 120px); animation-duration: 2.4s; }
+      @keyframes lichWord { 0% { opacity: 0; transform: scale(2.4); filter: blur(8px); } 12% { opacity: 1; transform: scale(1); filter: blur(0); } 20% { transform: scale(1.06) translateX(-4px); } 26% { transform: scale(1) translateX(4px); } 70% { opacity: 1; transform: scale(1.02); } 100% { opacity: 0; transform: scale(1.15); } }
+      #lichFlash { position: fixed; inset: 0; pointer-events: none; opacity: 0; }
+      #lichFlash.green { background: radial-gradient(circle, #eaffd0ee, #3aff4a88 55%, transparent); animation: vigFlash 0.7s ease-out forwards; }
+      #lichFlash.fall { background: radial-gradient(circle, #ffffff 0%, #d8ffc0 30%, #1a8a2a 65%, #000 100%); animation: lichFall 1.1s ease-out forwards; }
+      @keyframes lichFall { 0% { opacity: 0.95; } 8% { opacity: 0.85; } 40% { opacity: 0.35; } 100% { opacity: 0; } }
+      body.bossLich #bossName { color: #1f8a2a; }
+      body.bossLich #bossHp { background: linear-gradient(#d8ffc0, #2aa83a); }
+      body.bossLich #bossSay { background: #e8ffe0; }
+      #heat { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.8s; --heat: #5a1404; background: radial-gradient(ellipse at center, transparent 52%, var(--heat) 100%); }
+      #heat.p1 { --heat: #7a1a02; animation: vig 1.6s ease-in-out infinite; }
+      #heat.p2 { --heat: #0a2a6a; animation: vig 1.3s ease-in-out infinite; }
+      #heat.flash::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, #ffffffdd, #ffb03a99 55%, transparent); animation: vigFlash 0.7s ease-out forwards; }
+      @keyframes vigFlash { from { opacity: 1; } to { opacity: 0; } }
+      #hurt.on { opacity: 0.8; transition: none; }
+      [hidden] { display: none !important; }
+      @media (max-width: 520px) {
+        #area { font-size: 1.9em; }
+        .heart { width: 20px; height: 19px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #area, #toast, #fade { transition: none; }
+        #jakePow.ready, #bJake.ready, #firePow.ready, #bFire.ready, #firePow.nope, #bFire.nope { animation: none; }
+        #vignette.p2 { animation: none; }
+        .cry.got { animation: none; }
+        #heat.p1, #heat.p2 { animation: none; }
+        #heat.flash::after { display: none; }
+        #vignette.flash::after { display: none; }
+        #lichWord.show { animation: none; opacity: 0; }
+        #lichFlash.green, #lichFlash.fall { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="vignette"></div>
+    <div id="lichvig"></div>
+    <div id="lichStop"></div>
+    <div id="lichFlash"></div>
+    <div id="lichWord"></div>
+    <div id="heat"></div>
+    <div id="hurt"></div>
+    <div id="hud" hidden>
+      <div id="hearts" class="panel"></div>
+      <div id="gems" class="panel"><span class="gem"></span><span id="gemCount">0/10</span><span id="crys"></span></div>
+      <div id="jakePow" class="panel">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M7 30C7 13 15 6 24 6s17 7 17 24c0 10-7 14-17 14S7 40 7 30z" fill="#f7ae1f" stroke="#1d2340" stroke-width="2.5" />
+          <ellipse cx="17" cy="19" rx="6" ry="6.5" fill="#fff" stroke="#1d2340" stroke-width="2.5" />
+          <ellipse cx="31" cy="19" rx="6" ry="6.5" fill="#fff" stroke="#1d2340" stroke-width="2.5" />
+          <circle cx="18.5" cy="20.5" r="2.8" fill="#1d2340" />
+          <circle cx="29.5" cy="20.5" r="2.8" fill="#1d2340" />
+          <ellipse cx="18.5" cy="32" rx="6.5" ry="5" fill="#f7ae1f" stroke="#1d2340" stroke-width="2" />
+          <ellipse cx="29.5" cy="32" rx="6.5" ry="5" fill="#f7ae1f" stroke="#1d2340" stroke-width="2" />
+          <ellipse cx="24" cy="27.5" rx="4.5" ry="3.2" fill="#241c1c" />
+        </svg>
+        <kbd>Q</kbd>
+      </div>
+      <div id="firePow" class="panel" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 3c3 7 12 11 12 22 0 9-5 17-12 17S12 34 12 25c0-6 4-9 5-14 2 3 2 6 4 7 1-5 1-10 3-15z" fill="#ff6a1a" stroke="#1d2340" stroke-width="2.5" stroke-linejoin="round" />
+          <path d="M24 15c2 5 7 8 7 14 0 5-3 9-7 9s-7-4-7-9c0-4 3-6 3-10 1 2 2 3 3 3 0-3 0-5 1-7z" fill="#ffd24a" />
+          <path d="M24 6l2.6 4.5V31h-5.2V10.5z" fill="#fff4c0" stroke="#1d2340" stroke-width="2" stroke-linejoin="round" />
+          <rect x="16" y="30" width="16" height="4.5" rx="2.2" fill="#ffd23f" stroke="#1d2340" stroke-width="2" />
+          <rect x="22" y="34.5" width="4" height="8.5" rx="1.6" fill="#6e3a1d" stroke="#1d2340" stroke-width="2" />
+        </svg>
+        <kbd>F</kbd>
+      </div>
+      <div id="quests">
+        <div id="quest0" class="panel quest" hidden><span id="quest0Text"></span></div>
+        <div id="quest" class="panel quest" hidden><span id="questText"></span></div>
+        <div id="quest2" class="panel quest" hidden><span id="quest2Text"></span></div>
+        <div id="quest3" class="panel quest" hidden><span id="quest3Text"></span></div>
+      </div>
+      <div id="boss" class="panel" hidden>
+        <div id="bossTop"><span id="bossName"></span><span id="bossPhase"></span></div>
+        <div id="bossBar"><i id="bossLag"></i><i id="bossHp"></i></div>
+        <div id="bossCast" hidden><span id="bossCastName"></span><i><b id="bossCastFill"></b></i></div>
+      </div>
+      <div id="bossSay" class="panel"></div>
+      <div id="area"></div>
+      <div id="toast" class="panel"></div>
+      <div id="prompt" class="panel"></div>
+      <div id="dialog" class="panel" hidden><div id="dlgName"></div><div id="dlgText"></div><div id="dlgHint"></div></div>
+      <canvas id="minimap" width="150" height="150"></canvas>
+      <div id="touch" hidden>
+        <div id="stick"><div id="knob"></div></div>
+        <button id="bJump" class="tbtn"></button>
+        <button id="bAtk" class="tbtn"></button>
+        <button id="bTalk" class="tbtn"></button>
+        <button id="bJake" class="tbtn"></button>
+        <button id="bFire" class="tbtn" hidden></button>
+        <button id="bPause" class="tbtn">II</button>
+      </div>
+    </div>
+    <div id="menu">
+      <div id="menuCard" class="panel">
+        <h1 id="mTitle"></h1>
+        <h2 id="mSub"></h2>
+        <div id="menuBtns">
+          <button id="btnPlay" class="btn" disabled></button>
+          <button id="btnNew" class="btn alt" hidden></button>
+        </div>
+        <div id="clues" hidden></div>
+        <div id="sens">
+          <h3 id="lSens"></h3>
+          <label><span id="lSensMouse"></span><input type="range" id="optSensMouse" min="0.25" max="3" step="0.05" /><output id="vSensMouse"></output></label>
+          <label><span id="lSensPad"></span><input type="range" id="optSensPad" min="0.25" max="3" step="0.05" /><output id="vSensPad"></output></label>
+        </div>
+        <div id="controls"></div>
+        <div id="opts">
+          <label><input type="checkbox" id="optSound" checked /> <span id="lSound"></span></label>
+          <label><input type="checkbox" id="optShake" checked /> <span id="lShake"></span></label>
+          <label><input type="checkbox" id="optBig" /> <span id="lBig"></span></label>
+        </div>
+        <p id="loading"></p>
+      </div>
+    </div>
+    <div id="fade"></div>
+    <div id="debug" hidden></div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
