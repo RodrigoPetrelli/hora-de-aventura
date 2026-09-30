@@ -6,6 +6,17 @@ Tudo é feito em [Three.js](https://threejs.org/), com os modelos criados direto
 
 > Projeto de fã, sem fins lucrativos e sem ligação com a Cartoon Network. *Hora de Aventura* (*Adventure Time*) e seus personagens pertencem aos seus donos.
 
+![Finn e Jake na frente da Casa da Árvore](imagens/casa-da-arvore.jpg)
+
+| | |
+|---|---|
+| ![O Reino Doce visto do alto](imagens/vista-doce.jpg) | ![O Reino Gelado e a montanha do Rei Gelado](imagens/vista-gelado.jpg) |
+| **Reino Doce** | **Reino Gelado** |
+| ![O Reino do Fogo, com o palácio e os rios de lava](imagens/vista-fogo.jpg) | ![Finn nas ilhas flutuantes do Espaço Caroçudo](imagens/espaco-carocudo.jpg) |
+| **Reino do Fogo** | **Espaço Caroçudo** |
+
+![Finn contra o Rei de Fogo no Coliseu das Chamas](imagens/rei-de-fogo.jpg)
+
 ## Como rodar
 
 Você só precisa do [Node.js](https://nodejs.org/) **20.11 ou mais novo**.
